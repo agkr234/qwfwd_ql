@@ -1,7 +1,7 @@
 ifdef DEBUG
-EXTRACFLAGS=-Wall -g
+EXTRACFLAGS=-Wall -g -fcommon
 else
-EXTRACFLAGS=-Wall -O2
+EXTRACFLAGS=-Wall -O2 -fcommon
 endif
 
 ifeq ($(MAKECMDGOALS),qwfwd-dl)
