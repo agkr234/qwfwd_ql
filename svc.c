@@ -298,7 +298,10 @@ static void SVC_DirectConnect (void)
 	// check chaining
 	if ((at = strchr(prx, '@')) && at[1])
 	{
-		Info_SetValueForKeyEx(userinfo, QWFWD_PRX_KEY, at+1, sizeof(userinfo), false);
+		if (proto == pr_ql)
+			Info_SetValueForKeyEx(userinfo, "teamtask", at+1, sizeof(userinfo), false);
+		else
+			Info_SetValueForKeyEx(userinfo, QWFWD_PRX_KEY, at+1, sizeof(userinfo), false);
 		at[0] = 0; // truncate proxy chains
 	}
 	else
