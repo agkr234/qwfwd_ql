@@ -1,4 +1,9 @@
+ifdef DEBUG
+EXTRACFLAGS=-Wall -g
+else
 EXTRACFLAGS=-Wall -O2
+endif
+
 ifeq ($(MAKECMDGOALS),qwfwd-dl)
 	EXTRACFLAGS += -fPIC -pthread -D APP_DLL
 endif

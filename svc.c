@@ -27,6 +27,8 @@ typedef struct
 	int						challenge;
 	time_t					time;
 	protocol_t				proto;
+	byte*					ql_data;
+	int						ql_data_len;
 } challenge_t;
 
 static challenge_t		challenges[MAX_CHALLENGES];	// to prevent invalid IPs from connecting
@@ -101,7 +103,7 @@ static void SVC_GetChallenge ( protocol_t proto )
 	// overwrite proto in any case!
 	challenges[i].proto	= proto;
 
-	if ( challenges[i].proto == pr_q3 )
+	if ( (challenges[i].proto == pr_q3 || challenges[i].proto == pr_ql) )
 	{
 		peer_t *p = FWD_peer_by_addr( &net_from );
 		if ( p && p->ps == ps_connected )
@@ -126,6 +128,38 @@ static void SVC_GetChallenge ( protocol_t proto )
 		over = buf + strlen(buf) + 1;
 
 		Netchan_OutOfBand(net_from_socket, &net_from, over-buf, (byte*) buf);
+	}
+	else if ( challenges[i].proto == pr_ql ) {
+		int datasize = net_message.cursize - 4;
+		byte data[datasize];
+		printf("data addr:%x", data);
+		byte temp;
+		MSG_BeginReading();
+		//printf("read steam auth:");
+		for (int j=0; j < net_message.cursize; j++) {
+			temp = MSG_ReadByte();
+			//printf("%02x", temp);
+			if (j < 4)
+				continue;
+			else
+				data[j - 4] = temp;
+		}
+		//printf("\nend of steam auth\n");
+		//printf("challenge num: %d\n", i);
+		if (challenges[i].ql_data)
+			Sys_free(challenges[i].ql_data);
+		challenges[i].ql_data_len = datasize;
+		challenges[i].ql_data = Sys_malloc(datasize);
+		//printf("asdf\n");
+		memcpy(challenges[i].ql_data, data, datasize);
+		Netchan_OutOfBandPrint(net_from_socket, &net_from, "challengeResponse %i", challenges[i].challenge);
+		//Netchan_OutOfBand(net_from_socket, &net_from, challenges[i].ql_data_len, challenges[i].ql_data);
+		/*printf("send auth\n"); //debug
+		for (int k=0; k < challenges[i].ql_data_len; k++) {
+			temp = challenges[i].ql_data[k];
+			printf("%02x", temp);
+		}
+		printf("\nend\n");*/
 	}
 	else
 	{
@@ -244,7 +278,10 @@ static void SVC_DirectConnect (void)
 	}
 
 	// check prx setinfo key
-	Info_ValueForKey(userinfo, QWFWD_PRX_KEY, prx, sizeof(prx));
+	if (proto == pr_ql)
+		Info_ValueForKey(userinfo, "teamtask", prx, sizeof(prx));
+	else
+		Info_ValueForKey(userinfo, QWFWD_PRX_KEY, prx, sizeof(prx));
 	if (!prx[0])
 	{
 		if ( proto == pr_qw )
@@ -287,13 +324,20 @@ static void SVC_DirectConnect (void)
 	}
 
 	// put some identifier in userinfo so server/proxy can detect that client use qwfwd.
-	Info_SetValueForStarKey(userinfo, "*qwfwd", QWFWD_VERSION_SHORT, sizeof(userinfo));
+	//Info_SetValueForStarKey(userinfo, "*qwfwd", QWFWD_VERSION_SHORT, sizeof(userinfo));
 
 	// build a new connection
 
 	// this was new peer, lets register it then
 	if ((p = FWD_peer_new(prx, port, &net_from, userinfo, qport, proto, true)))
 	{
+		if (p->proto == pr_ql) {
+			if (p->ql_data)
+				Sys_free(p->ql_data);
+			p->ql_data_len = challenges[i].ql_data_len;
+			p->ql_data = Sys_malloc(p->ql_data_len);
+			memcpy(p->ql_data, challenges[i].ql_data, p->ql_data_len);
+		}
 		Sys_DPrintf("peer %s:%d added or reused\n", inet_ntoa(net_from.sin_addr), (int)ntohs(net_from.sin_port));
 	}
 	else
@@ -438,7 +482,7 @@ qbool SV_ConnectionlessPacket(void)
 		{
 			unsigned int i = FindChallengeForAddr(&net_from);
 
-			if ( i < MAX_CHALLENGES && challenges[i].proto == pr_q3 )
+			if ( i < MAX_CHALLENGES && (challenges[i].proto == pr_q3 || challenges[i].proto == pr_ql) )
 			{
 				Huff_DecryptPacket(&net_message, 12);
 				MSG_BeginReading();
@@ -460,7 +504,7 @@ qbool SV_ConnectionlessPacket(void)
 		else if (!strcmp(c,"connect"))
 			SVC_DirectConnect();
 		else if (!strcmp(c,"getchallenge"))
-			SVC_GetChallenge( !strcmp(s,"getchallenge\n") ? pr_qw : pr_q3 );
+			SVC_GetChallenge( !strcmp(s,"getchallenge\n") ? pr_qw : net_message.cursize == 259 ? pr_ql : pr_q3 );
 		else if (!strcmp(c,"status"))
 			SVC_Status();
 		else if (!strcmp(c,"rcon"))

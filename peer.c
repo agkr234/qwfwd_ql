@@ -55,7 +55,7 @@ peer_t	*FWD_peer_new(const char *remote_host, int remote_port, struct sockaddr_i
 	p->s		= ( new_peer ) ? s : p->s; // reuse socket in case of reusing
 	p->from		= *from;
 	p->to		= to;
-	p->ps		= ( !new_peer && proto == pr_q3 ) ? p->ps : ps_challenge; // do not reset state for q3 in case of peer reusing
+	p->ps		= ( !new_peer && (proto == pr_q3 || proto == pr_ql) ) ? p->ps : ps_challenge; // do not reset state for q3 in case of peer reusing
 	p->qport	= qport;
 	p->proto	= proto;
 	strlcpy(p->userinfo, userinfo, sizeof(p->userinfo));
@@ -217,7 +217,6 @@ static void FWD_network_update(void)
 	{
 		qbool connectionless;
 		int cnt;
-
 		// read it
 		for(;;)
 		{
@@ -331,7 +330,11 @@ static void FWD_network_update(void)
 			if (time(NULL) - p->connect > 2)
 			{
 				p->connect = time(NULL);
-				Netchan_OutOfBandPrint(p->s, &p->to, "getchallenge%s", p->proto == pr_qw ? "\n" : "");
+				if (p->proto == pr_ql)  {
+					Netchan_OutOfBand(p->s, &p->to, p->ql_data_len, p->ql_data);
+				}
+				else
+					Netchan_OutOfBandPrint(p->s, &p->to, "getchallenge%s", p->proto == pr_qw ? "\n" : "");
 			}
 		}
 	} // for (p = peers; p; p = p->next)

@@ -130,7 +130,8 @@ extern "C" {
 typedef enum
 {
 	pr_qw,			// qw protocol
-	pr_q3			// q3 protocol
+	pr_q3,			// q3 protocol
+	pr_ql
 } protocol_t;
 
 typedef enum
@@ -157,6 +158,8 @@ typedef struct peer
 	peer_state_t ps;				// peer state
 	protocol_t	proto;				// which protocol we use
 	struct peer *next;				// next peer in linked list
+	byte* ql_data;
+	int ql_data_len;
 } peer_t;
 
 // used for passing params for thread
